@@ -67,46 +67,49 @@
         return border;
       });
 
-      // Retell client setup
       let webClient = null;
       let isCalling = false;
 
       function setupRetellClient() {
-        if (typeof RetellWebClient === 'undefined') {
-          console.error('RetellWebClient is not defined. Make sure to include the Retell SDK.');
-          return;
-        }
+        return new Promise((resolve, reject) => {
+          if (typeof RetellWebClient === 'undefined') {
+            console.error('RetellWebClient is not defined. Make sure to include the Retell SDK.');
+            reject('RetellWebClient not defined');
+            return;
+          }
 
-        webClient = new RetellWebClient();
-        
-        webClient.on("conversationStarted", () => {
-          console.log("conversationStarted");
-          isCalling = true;
-          borders.forEach(border => border.style.display = 'block');
-        });
+          webClient = new RetellWebClient();
+          
+          webClient.on("conversationStarted", () => {
+            console.log("conversationStarted");
+            isCalling = true;
+            borders.forEach(border => border.style.display = 'block');
+          });
 
-        webClient.on("conversationEnded", ({ code, reason }) => {
-          console.log("Closed with code:", code, ", reason:", reason);
-          isCalling = false;
-          borders.forEach(border => border.style.display = 'none');
-        });
+          webClient.on("conversationEnded", ({ code, reason }) => {
+            console.log("Closed with code:", code, ", reason:", reason);
+            isCalling = false;
+            borders.forEach(border => border.style.display = 'none');
+          });
 
-        webClient.on("error", (error) => {
-          console.error("An error occurred:", error);
-          isCalling = false;
-          borders.forEach(border => border.style.display = 'none');
+          webClient.on("error", (error) => {
+            console.error("An error occurred:", error);
+            isCalling = false;
+            borders.forEach(border => border.style.display = 'none');
+          });
+
+          resolve();
         });
       }
 
-      // Modify the toggleConversation function
       async function toggleConversation() {
         if (!webClient) {
-          setupRetellClient();
-        }
-
-        if (!webClient) {
-          console.error('Failed to initialize RetellWebClient');
-          return;
+          try {
+            await setupRetellClient();
+          } catch (error) {
+            console.error("Failed to setup Retell client:", error);
+            return;
+          }
         }
 
         if (isCalling) {
@@ -117,7 +120,7 @@
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                "Authorization": "Bearer 2cc0f2a5-2370-4bbc-a2f7-afc8a1a34cc5" // Directly use the full Bearer token
+                "Authorization": "Bearer 2cc0f2a5-2370-4bbc-a2f7-afc8a1a34cc5"
               },
               body: JSON.stringify({
                 agent_id: window.RetellConfig.agentId,
@@ -146,7 +149,7 @@
       document.getElementById('retell-chat-button').addEventListener('click', toggleConversation);
 
       // Call setupRetellClient immediately to ensure it's ready
-      setupRetellClient();
+      setupRetellClient().catch(console.error);
     })();
     </script>
     <script src="https://cdn.jsdelivr.net/gh/thomassi98/midpilot_browser@main/midpilot.js"></script>
