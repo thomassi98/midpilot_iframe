@@ -26,6 +26,11 @@
             cursor: pointer;
             z-index: 9999;
         }
+        .retell-chat-border {
+            position: fixed;
+            z-index: 9998;
+            background-color: #000;
+        }
     </style>
 </head>
 <body>
@@ -33,7 +38,124 @@
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
     </div>
 
-    <script src="https://unpkg.com/retell-client-js-sdk@latest/dist/index.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/thomassi98/midpilot_browser@main/midpilot.js"></script>
+    <script src="https://cdn.retellai.com/sdk/web-client/v1/retell-client-sdk.js"></script>
+    <script>
+    (function() {
+      // Configuration object with API key and agent ID
+      window.RetellConfig = {
+        apiKey: 'Bearer 2cc0f2a5-2370-4bbc-a2f7-afc8a1a34cc5',
+        agentId: 'b54c19f8427cf25499dc4e882f2f909c'
+      };
+
+      // Create border elements
+      const borders = ['top', 'right', 'bottom', 'left'].map(side => {
+        const border = document.createElement('div');
+        border.className = 'retell-chat-border';
+        border.style.display = 'none';
+        if (side === 'top' || side === 'bottom') {
+          border.style.left = '0';
+          border.style.right = '0';
+          border.style.height = '1px';
+          border.style[side] = '0';
+        } else {
+          border.style.top = '1px';
+          border.style.bottom = '0';
+          border.style.width = '1px';
+          border.style[side] = '0';
+        }
+        document.body.appendChild(border);
+        return border;
+      });
+
+      // Retell client setup
+      let webClient = null;
+      let isCalling = false;
+
+      function setupRetellClient() {
+        if (typeof RetellWebClient === 'undefined') {
+          console.error('RetellWebClient is not defined. Make sure to include the Retell SDK.');
+          return;
+        }
+
+        webClient = new RetellWebClient();
+        
+        webClient.on("conversationStarted", () => {
+          console.log("conversationStarted");
+          isCalling = true;
+          borders.forEach(border => border.style.display = 'block');
+        });
+
+        webClient.on("conversationEnded", ({ code, reason }) => {
+          console.log("Closed with code:", code, ", reason:", reason);
+          isCalling = false;
+          borders.forEach(border => border.style.display = 'none');
+        });
+
+        webClient.on("error", (error) => {
+          console.error("An error occurred:", error);
+          isCalling = false;
+          borders.forEach(border => border.style.display = 'none');
+        });
+      }
+
+      // Toggle conversation
+      async function toggleConversation() {
+        if (!webClient) {
+          setupRetellClient();
+        }
+
+        if (isCalling) {
+          webClient.stopConversation();
+        } else {
+          try {
+            const response = await fetch("https://api.retellai.com/v2/create-web-call", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": window.RetellConfig.apiKey
+              },
+              body: JSON.stringify({
+                agent_id: window.RetellConfig.agentId,
+              }),
+            });
+
+            if (!response.ok) {
+              throw new Error(`Error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            if (data.call_id) {
+              webClient.startConversation({
+                callId: data.call_id,
+                sampleRate: 48000,
+                enableUpdate: true,
+              });
+            }
+          } catch (error) {
+            console.error("Failed to start conversation:", error);
+          }
+        }
+      }
+
+      // Add click event to button
+      const button = document.getElementById('retell-chat-button');
+      if (button) {
+        button.addEventListener('click', toggleConversation);
+      } else {
+        console.error("Retell chat button not found");
+      }
+
+      // Handle route changes (if using a SPA framework)
+      let lastPathname = window.location.pathname;
+      setInterval(() => {
+        if (window.location.pathname !== lastPathname) {
+          lastPathname = window.location.pathname;
+          if (webClient && isCalling) {
+            webClient.sendUpdate({ type: 'new_page', content: document.documentElement.outerHTML });
+          }
+        }
+      }, 1000);
+    })();
+    </script>
 </body>
 </html>
